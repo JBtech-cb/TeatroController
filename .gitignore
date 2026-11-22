@@ -1,5 +1,8 @@
 node_modules/
+.freebuff/
+.cloud-attachments/
 certs/
 *.pem
-*.log
+*.key
+test/fixtures/*.wav
 .DS_Store
