@@ -1,23 +1,20 @@
 {
   "name": "palco-control",
   "version": "1.0.0",
-  "private": true,
-  "description": "PALCO CONTROL - central de sonorizacao teatral com microfones via WebRTC",
+  "description": "Central de sonorização teatral: celulares como microfones sem fio via WebRTC, mixer Web Audio, músicas com crossfade, efeitos, cenas e emergência.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "start:https": "node server.js --https",
-    "start:http": "node server.js --http",
     "cert": "bash scripts/gen-cert.sh",
-    "test": "node --test test/"
+    "test": "node --test test/signaling.test.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "qrcode-generator": "^1.4.4"
   },
   "engines": {
     "node": ">=18"
-  },
-  "dependencies": {
-    "ws": "8.18.0"
-  },
-  "devDependencies": {
-    "qrcode-generator": "1.4.4"
   }
 }
