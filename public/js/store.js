@@ -1,109 +1,44 @@
-/** Armazenamento local (IndexedDB): arquivos de audio + configuracoes. */
-
-const DB_NAME = 'palco-control';
-const DB_VERSION = 1;
-
-let dbPromise = null;
-
-function openDb() {
-  if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains('files')) db.createObjectStore('files', { keyPath: 'id' });
-      if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv', { keyPath: 'key' });
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error || new Error('Falha ao abrir o banco local'));
-    req.onblocked = () => reject(new Error('Banco local bloqueado por outra aba. Feche as outras abas do painel.'));
-  });
-  return dbPromise;
-}
-
-async function tx(store, mode, run) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const t = db.transaction(store, mode);
-    const s = t.objectStore(store);
-    let result;
-    try {
-      result = run(s);
-    } catch (err) {
-      reject(err);
-      return;
-    }
-    t.oncomplete = () => resolve(result && result.__req ? result.__req.result : result);
-    t.onerror = () => reject(t.error || new Error('Erro no banco local'));
-    t.onabort = () => reject(t.error || new Error('Operacao cancelada no banco local'));
-  });
-}
-
-export async function putFile(file) {
-  await tx('files', 'readwrite', (s) => s.put(file));
-  return file;
-}
-
-export async function getFile(id) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const t = db.transaction('files', 'readonly');
-    const req = t.objectStore('files').get(id);
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-export async function deleteFile(id) {
-  await tx('files', 'readwrite', (s) => s.delete(id));
-}
-
-export async function listFiles() {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const t = db.transaction('files', 'readonly');
-    const req = t.objectStore('files').getAll();
-    req.onsuccess = () => resolve(req.result || []);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-export async function getKV(key, fallback = null) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const t = db.transaction('kv', 'readonly');
-    const req = t.objectStore('kv').get(key);
-    req.onsuccess = () => resolve(req.result ? req.result.value : fallback);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-export async function setKV(key, value) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const t = db.transaction('kv', 'readwrite');
-    t.objectStore('kv').put({ key, value });
-    t.oncomplete = () => resolve(true);
-    t.onerror = () => reject(t.error);
-  });
-}
-
-/** Quanto espaco o navegador informa (pode nao existir em todos). */
-export async function storageInfo() {
-  if (!navigator.storage || !navigator.storage.estimate) return null;
-  try {
-    const est = await navigator.storage.estimate();
-    return { usage: est.usage || 0, quota: est.quota || 0 };
-  } catch {
-    return null;
+export class Store {
+  constructor() {
+    this.db = null;
+    this.ready = this.open();
   }
-}
-
-export async function requestPersistence() {
-  if (!navigator.storage || !navigator.storage.persist) return false;
-  try {
-    return await navigator.storage.persist();
-  } catch {
-    return false;
+  async open() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open('palco-control', 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('tracks')) db.createObjectStore('tracks', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('fx')) db.createObjectStore('fx', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('scenes')) db.createObjectStore('scenes', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('config')) db.createObjectStore('config', { keyPath: 'key' });
+      };
+      req.onsuccess = (e) => { this.db = e.target.result; resolve(this.db); };
+      req.onerror = () => reject(req.error);
+    });
   }
+  async loadTracks() { await this.ready; return new Promise((res) => { const r = this.db.transaction('tracks').objectStore('tracks').getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); }); }
+  async loadFx() { await this.ready; return new Promise((res) => { const r = this.db.transaction('fx').objectStore('fx').getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); }); }
+  async loadScenes() { await this.ready; return new Promise((res) => { const r = this.db.transaction('scenes').objectStore('scenes').getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); }); }
+  async importTrack(file) {
+    await this.ready;
+    const buf = await file.arrayBuffer();
+    const id = 'track-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    const t = { id, name: file.name.replace(/\.[^.]+$/, ''), duration: 0, volume: 1, scene: '', blob: buf };
+    await new Promise((res, rej) => { const r = this.db.transaction('tracks', 'readwrite').objectStore('tracks').put(t); r.onsuccess = () => res(); r.onerror = () => rej(r.error); });
+    t.createNode = (ctx) => { const src = ctx.createBufferSource(); const gain = ctx.createGain(); src.buffer = null; try { ctx.decodeAudioData(buf.slice(0), (b) => { src.buffer = b; src.start(); }); } catch (e) {} src.connect(gain); return gain; };
+    return t;
+  }
+  async importFx(file) {
+    await this.ready;
+    const buf = await file.arrayBuffer();
+    const id = 'fx-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    const fx = { id, name: file.name.replace(/\.[^.]+$/, ''), duration: 0, volume: 1, loop: false, key: '', blob: buf };
+    await new Promise((res, rej) => { const r = this.db.transaction('fx', 'readwrite').objectStore('fx').put(fx); r.onsuccess = () => res(); r.onerror = () => rej(r.error); });
+    fx.createNode = (ctx) => { const src = ctx.createBufferSource(); const gain = ctx.createGain(); gain.gain.value = fx.volume ?? 1; try { ctx.decodeAudioData(buf.slice(0), (b) => { src.buffer = b; src.loop = fx.loop; src.start(); }); } catch (e) {} src.connect(gain); return gain; };
+    return fx;
+  }
+  async saveScene(s) { await this.ready; return new Promise((res, rej) => { const r = this.db.transaction('scenes', 'readwrite').objectStore('scenes').put(s); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }); }
+  async deleteTrack(id) { await this.ready; return new Promise((res) => { const r = this.db.transaction('tracks', 'readwrite').objectStore('tracks').delete(id); r.onsuccess = () => res(); r.onerror = () => res(); }); }
+  async saveAll(app) { /* persistencia de config opcional */ }
 }
