@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0d11" />
+    <title>PALCO CONTROL</title>
+    <link rel="stylesheet" href="/css/app.css" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0e12'/%3E%3Crect x='11' y='5' width='10' height='14' rx='5' fill='%23f0b03c'/%3E%3Crect x='14' y='20' width='4' height='7' fill='%23f0b03c'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="brand">PALCO<span>CONTROL</span></div>
+      <div class="room-info" id="room-info">sala <b id="room-name">—</b> · PIN <b id="pin-mask">••••</b></div>
+      <div class="conn"><span class="led" id="conn-led"></span><span id="conn-text">desconectado</span></div>
+      <div class="scene-chip" id="scene-chip">sem cena ativa</div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+
+    <div class="emergency">
+      <button class="emg danger" data-action="mute-mics">SILENCIAR MICROFONES <kbd>M</kbd></button>
+      <button class="emg danger" data-action="stop-music">PARAR MÚSICAS <kbd>,</kbd></button>
+      <button class="emg danger" data-action="stop-fx">PARAR EFEITOS <kbd>.</kbd></button>
+      <button class="emg danger" data-action="mute-all">SILENCIAR TUDO <kbd>X</kbd></button>
+      <button class="emg ok" data-action="resume">RETOMAR OPERAÇÃO <kbd>R</kbd></button>
+      <div class="emg-state" id="emg-state">operação normal</div>
+    </div>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="palco">PALCO</button>
+      <button class="tab" data-tab="mixer">MIXER</button>
+      <button class="tab" data-tab="music">MÚSICAS</button>
+      <button class="tab" data-tab="fx">EFEITOS</button>
+      <button class="tab" data-tab="scenes">CENAS</button>
+      <button class="tab" data-tab="settings">AJUSTES</button>
+    </nav>
+
+    <main>
+      <section class="tab-panel active" id="tab-palco">
+        <div class="stage">
+          <div class="stage-panel stage-mics-panel">
+            <div class="section-head"><h2>MICROFONES</h2><div class="section-actions"><button class="btn tiny" id="stage-add-mic">+ NOVO</button></div></div>
+            <div class="stage-mics" id="stage-mics"></div>
+          </div>
+          <div class="stage-panel stage-music-panel">
+            <div class="section-head"><h2>MÚSICA</h2></div>
+            <div class="stage-now" id="stage-now"></div>
+            <div class="stage-next" id="stage-next">PRÓXIMA: —</div>
+            <div class="np-controls">
+              <button class="btn" id="stage-playpause">TOCAR/PAUSAR</button>
+              <button class="btn" id="stage-stop">PARAR</button>
+              <button class="btn" id="stage-fadeout">FADE OUT</button>
+            </div>
+            <div class="stage-tracks" id="stage-tracks"></div>
+          </div>
+          <div class="stage-panel stage-fx-panel">
+            <div class="section-head"><h2>EFEITOS</h2></div>
+            <div class="stage-fx" id="stage-fx"></div>
+          </div>
+          <div class="stage-panel stage-keys-panel">
+            <details>
+              <summary>ATALHOS DE TECLADO (clique para configurar)</summary>
+              <div class="stage-keys" id="stage-keys"></div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-mixer">
+        <div class="section-head"><h2>MIXER</h2><div class="section-actions"><button class="btn" id="add-mic">+ NOVO MICROFONE</button></div></div>
+        <div class="mic-grid" id="mic-grid"></div>
+        <div class="master-strip">
+          <div class="master-block"><h3>MÚSICAS (GERAL)</h3><div class="row"><span class="lbl">VOLUME</span><input type="range" id="master-music" min="0" max="1" step="0.01" value="0.8" /><span class="val" id="master-music-val">80%</span></div><div class="row"><span class="lbl">SAÍDA</span><input type="range" id="master-out" min="0" max="1" step="0.01" value="0.9" /><span class="val" id="master-out-val">90%</span></div></div>
+          <div class="master-block"><h3>SAÍDA DE ÁUDIO</h3><div class="field"><span>DISPOSITIVO</span><select id="sink-select"><option value="default">Padrão do sistema</option></select></div><div class="row small"><span id="audio-state">áudio não iniciado</span><button class="btn tiny" id="start-audio">INICIAR ÁUDIO DA CENTRAL</button></div></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-music">
+        <div class="section-head"><h2>MÚSICAS</h2><div class="section-actions"><label class="btn file-btn">+ IMPORTAR MÚSICAS<input type="file" id="import-music" accept="audio/*" multiple /></label><span class="pill" id="crossfade-pill">crossfade: 2 s</span></div></div>
+        <div class="now-playing" id="now-playing"><div class="np-label">TOCANDO AGORA</div><div class="np-title" id="np-title">— nada tocando —</div><div class="progress" id="progress"><i></i></div><div class="np-times"><span id="np-cur">0:00</span><span id="np-dur">0:00</span></div><div class="np-controls"><button class="btn" id="playpause">TOCAR/PAUSAR</button><button class="btn" id="stopmusic">PARAR</button><button class="btn" id="fadeout">FADE OUT</button><button class="btn tiny" id="seek-back">« 10 s</button><button class="btn tiny" id="seek-fwd">10 s »</button><select id="crossfade-select" class="tiny"><option value="0">0 s (corte)</option><option value="1">1 s</option><option value="2" selected>2 s</option><option value="3">3 s</option><option value="5">5 s</option><option value="10">10 s</option><option value="custom">personalizado</option></select><input type="number" class="tiny" id="crossfade-custom" min="0" max="60" step="0.5" value="2" style="width:70px" /></div></div>
+        <div class="track-list" id="track-list"></div>
+      </section>
+
+      <section class="tab-panel" id="tab-fx">
+        <div class="section-head"><h2>EFEITOS</h2><div class="section-actions"><label class="btn file-btn">+ IMPORTAR EFEITOS<input type="file" id="import-fx" accept="audio/*" multiple /></label></div></div>
+        <div class="fx-grid" id="fx-grid"></div>
+      </section>
+
+      <section class="tab-panel" id="tab-scenes">
+        <div class="scenes-layout">
+          <div><div class="section-head"><h2>CENAS</h2><div class="section-actions"><button class="btn" id="new-scene">+ NOVA CENA</button></div></div><div class="scene-list" id="scene-list"></div></div>
+          <div class="scene-detail" id="scene-detail"><p class="muted">Selecione ou crie uma cena.</p></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-settings">
+        <div class="settings-grid">
+          <div class="card"><h3>ATALHOS</h3><div class="shortcut-list" id="shortcut-list"></div><p class="hint">Clique em uma tecla e pressione a nova. Esc cancela.</p></div>
+          <div class="card"><h3>PROCESSAMENTO POR MICROFONE</h3><p class="hint">No MIXER, cada canal tem sua seção. Aqui só referência.</p><ul class="plain"><li>Gate (limiar/ataque/release)</li><li>Compressor (-18 dB, 4:1)</li><li>Limiter (-1 dB)</li><li>Eco, ruído, ganho auto (pedido ao aparelho)</li></ul></div>
+          <div class="card"><h3>DIAGNÓSTICO</h3><div class="diag-list" id="diag-list"></div><button class="btn" id="run-diag">EXECUTAR TESTES</button></div>
+          <div class="card"><h3>ARMAZENAMENTO</h3><button class="btn" id="export-cfg">EXPORTAR CONFIGURAÇÕES</button><label class="btn file-btn">IMPORTAR CONFIGURAÇÕES<input type="file" id="import-cfg" accept="application/json" /></label><p class="hint" id="storage-info">—</p></div>
+        </div>
+      </section>
+    </main>
+
+    <div id="modal-root"></div>
+    <div id="toasts" class="toasts"></div>
+
+    <script type="module" src="/js/panel.js"></script>
+  </body>
+</html>
