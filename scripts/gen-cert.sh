@@ -1,34 +1,21 @@
 #!/usr/bin/env bash
-# Gera um certificado autoassinado com o IP local do notebook.
-# Sem HTTPS o Chrome do celular BLOQUEIA o microfone quando a pagina vem por IP.
 set -euo pipefail
-cd "$(dirname "$0")/.."
-mkdir -p certs
 
-IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") { print $(i+1); exit }}' || true)"
+# Gera certificado autoassinado com o IP local detectado.
+# Uso: npm run cert
+
+IP="$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '^127\.' | head -n1)"
 if [ -z "${IP}" ]; then
-  IP="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
+  echo "Nao foi possivel detectar o IP local. Defina PALCO_CERT/PALCO_KEY manualmente."
+  exit 1
 fi
 
-SAN="DNS:localhost,IP:127.0.0.1"
-if [ -n "${IP}" ]; then
-  SAN="${SAN},IP:${IP}"
-  echo "IP local detectado: ${IP}"
-else
-  echo "Aviso: nao consegui detectar o IP local. O certificado valera apenas para localhost."
-fi
+mkdir -p certs
+openssl req -x509 -newkey rsa:2048 -nodes \
+  -keyout certs/key.pem \
+  -out certs/cert.pem \
+  -days 365 \
+  -subj "/CN=${IP}" \
+  -addext "subjectAltName=IP:${IP},IP:127.0.0.1,DNS:localhost"
 
-openssl req -x509 -newkey rsa:2048 -sha256 -days 825 -nodes \
-  -keyout certs/key.pem -out certs/cert.pem \
-  -subj "/CN=palco-control" \
-  -addext "subjectAltName=${SAN}" \
-  -addext "basicConstraints=CA:FALSE" \
-  -addext "keyUsage=digitalSignature,keyEncipherment" \
-  -addext "extendedKeyUsage=serverAuth"
-
-chmod 600 certs/key.pem
-echo ""
-echo "Certificado criado em certs/cert.pem e certs/key.pem"
-echo "Agora rode:  npm start"
-echo "No celular, ao abrir o link https://IP:8787, toque em 'Avancado' e 'Continuar mesmo assim'."
-echo "Isso e necessario porque o certificado e assinado por voce, nao por uma autoridade publica."
+echo "Certificado gerado para ${IP}. Rode: npm start"
